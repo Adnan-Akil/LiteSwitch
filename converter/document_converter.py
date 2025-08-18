@@ -3,9 +3,7 @@
 import os
 import win32com.client as com
 from pdf2docx import parse
-
-# CONVERSION_OPTIONS = {"docx": ["pdf"]}
-
+import pypandoc
 
 def docx_to_pdf(input_path):
     try:
@@ -26,6 +24,38 @@ def docx_to_pdf(input_path):
         word.Quit()
 
 
+def docx_to_odt(input_path):
+    base, _ = os.path.splitext(input_path)
+    output_path = f"{base}_LiteSwitch.odt"
+    pypandoc.convert_file(input_path, 'odt', outputfile=output_path)
+    print(f"Converted {input_path} to {output_path}")
+
+
+
+def docx_to_txt(input_path):
+    pass
+
+
+def docx_to_md(input_path):
+    pass
+
+
+def docx_to_latex(input_path):
+    pass
+
+
+def docx_to_html(input_path):
+    pass
+
+
+def docx_to_jpeg(input_path):
+    pass
+
+
+def docx_to_rtf(input_path):
+    pass
+
+
 def pdf_to_docx(input_path):
     try:
         print("creating output path")
@@ -38,32 +68,39 @@ def pdf_to_docx(input_path):
         print(f"Error converting {input_path} to DOCX: {e}")
 
 
-CONVERSION_MAP = {"docx": {"pdf": docx_to_pdf}, "pdf": {"docx": pdf_to_docx}}
+def pdf_to_jpeg(input_path):
+    pass
 
 
-def testing_block():
-    test_docx_path = r"C:\Users\hyped\Desktop\LiteSwitch\SE_laiba.docx"
-    test_pdf_path = r"C:\Users\hyped\Desktop\LiteSwitch\DeloitteCertificate.pdf"
-    print("Running Docx to PDF conversion test...")
-    if os.path.exists(test_docx_path):
-        converter = CONVERSION_MAP["docx"].get("pdf")
-        if converter:
-            converter(test_docx_path)
-        else:
-            print("Failed")
-    else:
-        print("File not found")
-
-    print("Running PDF to Docx conversion test...")
-    if os.path.exists(test_pdf_path):
-        converter = CONVERSION_MAP["pdf"].get("docx")
-        if converter:
-            converter(test_pdf_path)
-        else:
-            print("Failed")
-    else:
-        print("File not found")
+def pdf_to_txt(input_path):
+    pass
 
 
-if __name__ == "__main__":
-    testing_block()
+def pdf_to_html(input_path):
+    pass
+
+
+def pdf_to_md(input_path):
+    pass
+
+
+CONVERSION_MAP = {
+    "docx": {
+        "pdf": docx_to_pdf,
+        "odt": docx_to_odt,
+        "txt": docx_to_txt,
+        "md": docx_to_md,
+        "LaTeX": docx_to_latex,
+        "html": docx_to_html,
+        "jpeg": docx_to_jpeg,
+        "rtf": docx_to_rtf,
+    },
+    "pdf": {
+        "docx": pdf_to_docx,
+        "jpeg": pdf_to_jpeg,
+        "txt": pdf_to_txt,
+        "html": pdf_to_html,
+        "md": pdf_to_md,
+    },
+}
+

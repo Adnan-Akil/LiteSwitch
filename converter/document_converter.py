@@ -6,6 +6,7 @@ from pdf2docx import parse
 import pypandoc
 
 def docx_to_pdf(input_path):
+    '''Converts a DOCX file to PDF using MS WORD COM interface.'''
     try:
         word = com.Dispatch("Word.Application")
         word.Visible = False  # runs word in bg
@@ -24,7 +25,8 @@ def docx_to_pdf(input_path):
         word.Quit()
 
 
-def docx_to_odt(input_path):
+def docx_to_odt(input_path):    #lossy
+    '''Converts DOCX to ODT format using pypandoc'''
     base, _ = os.path.splitext(input_path)
     output_path = f"{base}_LiteSwitch.odt"
     pypandoc.convert_file(input_path, 'odt', outputfile=output_path)
@@ -33,30 +35,38 @@ def docx_to_odt(input_path):
 
 
 def docx_to_txt(input_path):
-    pass
+    '''Converts DOCX to TXT using pypandoc'''
+    base, _ = os.path.splitext(input_path)
+    output_path = f"{base}_LiteSwitch.txt"
+    pypandoc.convert_file(input_path, 'plain', outputfile=output_path)
+    print(f"Converted {input_path} to {output_path}")
 
 
 def docx_to_md(input_path):
-    pass
+    '''Converts DOCX to Markdown using pypandoc'''
+    base, _ = os.path.splitext(input_path)
+    output_path = f"{base}_LiteSwitch.md"
+    pypandoc.convert_file(input_path, to='markdown', outputfile=output_path)
+    print(f"Converted {input_path} to {output_path}")
 
 
 def docx_to_latex(input_path):
-    pass
+    '''Converts DOCX to LaTeX using pypandoc'''
+    base, _ = os.path.splitext(input_path)
+    output_path = f"{base}_LiteSwitch.tex"
+    pypandoc.convert_file(input_path, to='latex', outputfile=output_path)
+    print(f"Converted {input_path} to {output_path}")
 
 
 def docx_to_html(input_path):
-    pass
+    base, _ = os.path.splitext(input_path)
+    output_path = f"{base}_LiteSwitch.html"
+    pypandoc.convert_file(input_path, to='html', outputfile=output_path)
+    print(f"Converted {input_path} to {output_path}")
+    
 
-
-def docx_to_jpeg(input_path):
-    pass
-
-
-def docx_to_rtf(input_path):
-    pass
-
-
-def pdf_to_docx(input_path):
+def pdf_to_docx(input_path):    #lossy
+    '''Convert PDF to DOCX using pdf2docx'''
     try:
         print("creating output path")
         base, _ = os.path.splitext(input_path)
@@ -90,10 +100,8 @@ CONVERSION_MAP = {
         "odt": docx_to_odt,
         "txt": docx_to_txt,
         "md": docx_to_md,
-        "LaTeX": docx_to_latex,
+        "latex": docx_to_latex,
         "html": docx_to_html,
-        "jpeg": docx_to_jpeg,
-        "rtf": docx_to_rtf,
     },
     "pdf": {
         "docx": pdf_to_docx,
@@ -103,4 +111,3 @@ CONVERSION_MAP = {
         "md": pdf_to_md,
     },
 }
-

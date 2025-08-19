@@ -1,4 +1,9 @@
 pywin32
 comtypes
-pypandoc
-pymupdf
+pypandoc-binary #delete if unused in the future
+pymupdf #delete if unused in the future
+python-docx #delete if unused in the future
+pdf2docx
+pdfminer.six
+"unstructured[pdf]"
+Pillow

@@ -7,3 +7,4 @@ pdf2docx
 pdfminer.six
 "unstructured[pdf]"
 Pillow
+python-pptx

@@ -8,11 +8,12 @@ import pypandoc  # most docx conversions
 import win32com.client as com
 from pdf2docx import parse
 from pdfminer.high_level import extract_text  # pdf to txt
-from unstructured.partition.pdf import partition_pdf  # pdf to md
 import fitz
 from PIL import Image  # for image conversions
 from pptx import Presentation  
-from pptx.util import Inches, Pt
+from pptx.util import Inches
+from markdownify import markdownify as md  # for docx to md conversion
+
 
 def docx_to_pdf(input_path):
     """Converts a DOCX file to PDF using MS WORD COM interface."""
@@ -189,14 +190,35 @@ def pdf_to_md(input_path):  #implement threadpool for this
     try:
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_LiteSwitch.md"
-        elements= partition_pdf(filename=input_path, strategy="auto")
-        with open(output_path, 'w', encoding='utf-8') as f:
-            for element in elements:
-                f.write(str(element) + '\n\n')
+        doc= fitz.open(input_path)
+        markdown_content= ""
+
+        for pageNum in range(len(doc)):
+            page= doc.load_page(pageNum)
+            blocks= page.get_text("blocks")
+
+            for block in blocks:
+                text= block[4].strip()
+                if not text:
+                    continue
+                
+                if len(text.splitlines()) == 1 and len(text) < 80:
+                    markdown_content += f"\n## {text}\n"
+                elif text.endswith('.') or text.endswith('?') or text.endswith('!'):
+                    markdown_content += f"{text}\n"
+                else:
+                    markdown_content += f"{text}\n\n"
+            
+            markdown_content += "---\n\n"
+            
+        doc.close()
+        final_markdown = md(markdown_content)
+        
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(final_markdown)
         print(f"Converted {input_path} to {output_path}")
     except Exception as e:
         print(f"Error converting {input_path} to Markdown: {e}")
-
 
 def png_to_pdf(input_path): #will configure this, and other functions to accept multiple files in the future
     try:

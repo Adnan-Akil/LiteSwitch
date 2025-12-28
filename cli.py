@@ -3,7 +3,6 @@ import os
 import argparse
 import logging
 import tempfile
-import traceback
 import ctypes
 
 from converter.document_converter import CONVERSION_MAP
@@ -70,7 +69,19 @@ def main():
         
         # Success Popup 
         filename = os.path.basename(output_path)
+        
+        # Try to read catchphrase from assets
         catchphrase = "From this to that--just like that."
+        cp_path = os.path.join(os.path.dirname(__file__), "assets", "catchphrase.txt")
+        if os.path.exists(cp_path):
+            try:
+                with open(cp_path, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        catchphrase = content.strip('"') # Remove quotes if present
+            except:
+                pass
+
         show_message("LiteSwitch Success", f"{catchphrase}\n\nLiteSwitch has done the job!\nCreated: {filename}")
             
     except Exception as e:

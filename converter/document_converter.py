@@ -4,6 +4,7 @@ import os
 import io
 import sys
 import logging
+import subprocess
 from typing import Optional, Callable, Dict
 
 # Configure Logger (inherits from main app if setup, else default)
@@ -14,7 +15,6 @@ def docx_to_pdf(input_path: str) -> Optional[str]:
     Converts a DOCX file to PDF using PowerShell (bypassing broken pywin32).
     Uses MS Word via COM from PowerShell.
     """
-    import subprocess
     logger.info(f"Converting DOCX to PDF (via PowerShell): {input_path}")
     
     base, _ = os.path.splitext(input_path)
@@ -37,8 +37,13 @@ def docx_to_pdf(input_path: str) -> Optional[str]:
     try:
         # Run powershell
         cmd = ["powershell", "-NoProfile", "-Command", ps_script]
-        # We define startupinfo to hide window if possible (though pythonw should handle it)
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        # Hide the PowerShell window
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
         
         if result.returncode != 0:
             logger.error(f"PowerShell Error: {result.stderr}")
@@ -306,7 +311,6 @@ def png_to_pdf(input_path: str) -> Optional[str]:
 
 def pptx_to_pdf(input_path: str) -> Optional[str]:
     """Converts PPTX to PDF using PowerShell (COM)."""
-    import subprocess
     logger.info(f"Converting PPTX to PDF: {input_path}")
     
     base, _ = os.path.splitext(input_path)
@@ -336,7 +340,13 @@ def pptx_to_pdf(input_path: str) -> Optional[str]:
     
     try:
         cmd = ["powershell", "-NoProfile", "-Command", ps_script]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        # Hide the PowerShell window
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
         
         if result.returncode != 0:
              logger.error(f"PowerShell Error: {result.stderr}")
@@ -352,7 +362,6 @@ def pptx_to_pdf(input_path: str) -> Optional[str]:
 
 def pptx_to_png(input_path: str) -> Optional[str]:
     """Converts PPTX slides to PNG images (PowerShell). Returns folder path."""
-    import subprocess
     logger.info(f"Converting PPTX to PNGs: {input_path}")
     
     base, _ = os.path.splitext(input_path)
@@ -396,7 +405,13 @@ def pptx_to_png(input_path: str) -> Optional[str]:
     
     try:
         cmd = ["powershell", "-NoProfile", "-Command", ps_script]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        # Hide the PowerShell window
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
         
         if result.returncode != 0:
              logger.error(f"PowerShell Error: {result.stderr}")

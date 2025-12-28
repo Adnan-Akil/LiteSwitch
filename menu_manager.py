@@ -36,10 +36,12 @@ def register_menu():
     for source_ext, targets in CONVERSION_MAP.items():
         ext_key = f".{source_ext}"
         
-        # Path to icon
-        icon_path = os.path.abspath("LiteSwitch Logo.png")
+        # Path to icon (Prefer ICO for valid resource scaling)
+        # Look in assets folder
+        icon_path = os.path.abspath(os.path.join("assets", "LiteSwitch_Logo_NEW.ico"))
+        
         if not os.path.exists(icon_path):
-            icon_path = PYTHON_EXEC # Fallback
+             icon_path = PYTHON_EXEC # Fallback
         
         # 1. Create the Main Parent Menu Item ("Convert with LiteSwitch")
         # Key: HKCU\Software\Classes\SystemFileAssociations\.ext\shell\LiteSwitch

@@ -5,7 +5,8 @@ pymupdf
 python-docx 
 pdf2docx
 pdfminer.six
-"unstructured[pdf]"  #bound for deletion
 Pillow
 python-pptx
 markdownify
+pytesseract
+pdf2image

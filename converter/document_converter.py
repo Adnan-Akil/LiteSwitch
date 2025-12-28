@@ -3,202 +3,271 @@
 import os
 import io
 import sys
+import logging
+from typing import Optional, Callable, Dict
 
-import pypandoc  # most docx conversions
-import win32com.client as com
-from pdf2docx import parse
-from pdfminer.high_level import extract_text  # pdf to txt
-import fitz
-from PIL import Image  # for image conversions
-from pptx import Presentation  
-from pptx.util import Inches
-from markdownify import markdownify as md  # for docx to md conversion
+# Configure Logger (inherits from main app if setup, else default)
+logger = logging.getLogger(__name__)
 
-
-def docx_to_pdf(input_path):
-    """Converts a DOCX file to PDF using MS WORD COM interface."""
+def docx_to_pdf(input_path: str) -> Optional[str]:
+    """
+    Converts a DOCX file to PDF using PowerShell (bypassing broken pywin32).
+    Uses MS Word via COM from PowerShell.
+    """
+    import subprocess
+    logger.info(f"Converting DOCX to PDF (via PowerShell): {input_path}")
+    
+    base, _ = os.path.splitext(input_path)
+    output_path = f"{base}_LiteSwitch.pdf"
+    
+    # PowerShell script to run Word COM
+    # wdFormatPDF = 17
+    ps_script = f"""
+    $word = New-Object -ComObject Word.Application
+    $word.Visible = $false
+    try {{
+        $doc = $word.Documents.Open('{input_path}')
+        $doc.ExportAsFixedFormat('{output_path}', 17)
+        $doc.Close($false)
+    }} finally {{
+        $word.Quit()
+    }}
+    """
+    
     try:
-        word = com.Dispatch("Word.Application")
-        word.Visible = False  # runs word in bg
-        base, _ = os.path.splitext(input_path)
-        output_path = f"{base}_LiteSwitch.pdf"
-
-        doc = word.Documents.Open(
-            input_path, False, False, False
-        )  # do not show dialogue box for conversions; 
-            #open dialogue box in read/write mode; dont add to recent files
-        word_formatpdf = 17  # wdFormatPDF
-        doc.ExportAsFixedFormat(output_path, word_formatpdf)
-        doc.Close(False)  # close the document without saving changes
-        print(f"Converted {input_path} to {output_path}")
-
+        # Run powershell
+        cmd = ["powershell", "-NoProfile", "-Command", ps_script]
+        # We define startupinfo to hide window if possible (though pythonw should handle it)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            logger.error(f"PowerShell Error: {result.stderr}")
+            raise Exception(f"PowerShell conversion failed: {result.stderr}")
+            
+        if not os.path.exists(output_path):
+             raise Exception("PDF file was not created by Word.")
+             
         return output_path
+        
     except Exception as e:
-        print(f"Error converting {input_path} to PDF: {e}")
-    finally:
-        word.Quit()
+        logger.error(f"Error converting {input_path} to PDF: {e}")
+        raise e
 
 
-def docx_to_odt(input_path):  # lossy
+def docx_to_odt(input_path: str) -> Optional[str]:  # lossy
     """Converts DOCX to ODT format using pypandoc"""
     try:
+        import pypandoc
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_LiteSwitch.odt"
         pypandoc.convert_file(input_path, "odt", outputfile=output_path)
-        print(f"Converted {input_path} to {output_path}")
+        return output_path
     except Exception as e:
-        print(f"Error converting {input_path} to ODT: {e}")
+        logger.error(f"Error converting {input_path} to ODT: {e}")
+        raise e
 
 
-def docx_to_txt(input_path):  # lossy
+def docx_to_txt(input_path: str) -> Optional[str]:  # lossy
     """Converts DOCX to TXT using pypandoc"""
     try:
+        import pypandoc
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_LiteSwitch.txt"
         pypandoc.convert_file(input_path, "plain", outputfile=output_path)
-        print(f"Converted {input_path} to {output_path}")
+        return output_path
     except Exception as e:
-        print(f"Error converting {input_path} to TXT: {e}")
+        logger.error(f"Error converting {input_path} to TXT: {e}")
+        raise e
 
 
-def docx_to_md(input_path):
+def docx_to_md(input_path: str) -> Optional[str]:
     """Converts DOCX to Markdown using pypandoc"""
     try:
+        import pypandoc
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_LiteSwitch.md"
         pypandoc.convert_file(input_path, to="markdown", outputfile=output_path)
-        print(f"Converted {input_path} to {output_path}")
+        return output_path
     except Exception as e:
-        print(f"Error converting {input_path} to Markdown: {e}")
+        logger.error(f"Error converting {input_path} to Markdown: {e}")
+        raise e
 
 
-def docx_to_latex(input_path):
+def docx_to_latex(input_path: str) -> Optional[str]:
     """Converts DOCX to LaTeX using pypandoc"""
     try:
+        import pypandoc
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_LiteSwitch.tex"
         pypandoc.convert_file(input_path, to="latex", outputfile=output_path)
-        print(f"Converted {input_path} to {output_path}")
+        return output_path
     except Exception as e:
-        print(f"Error converting {input_path} to LaTeX: {e}")
+        logger.error(f"Error converting {input_path} to LaTeX: {e}")
+        raise e
 
 
-def docx_to_html(input_path):  # lossy
+def docx_to_html(input_path: str) -> Optional[str]:  # lossy
     """Convert DOCX to HTML using pypandoc"""
     try:
+        import pypandoc
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_LiteSwitch.html"
         pypandoc.convert_file(input_path, to="html", outputfile=output_path)
-        print(f"Converted {input_path} to {output_path}")
+        return output_path
     except Exception as e:
-        print(f"Error converting {input_path} to HTML: {e}")
+        logger.error(f"Error converting {input_path} to HTML: {e}")
+        raise e
 
 
-def pdf_to_docx(input_path):  # lossy
+def pdf_to_docx(input_path: str) -> Optional[str]:  # lossy
     """Convert PDF to DOCX using pdf2docx"""
     try:
-        print("creating output path")
+        from pdf2docx import parse
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_LiteSwitch.docx"
-        print("converting file to pdf")
         parse(input_path, output_path)
-        print(f"Converted {input_path} to {output_path}")
+        return output_path
     except Exception as e:
-        print(f"Error converting {input_path} to DOCX: {e}")
+        logger.error(f"Error converting {input_path} to DOCX: {e}")
+        raise e
 
 
-def pdf_to_txt(input_path):
+def pdf_to_txt(input_path: str) -> Optional[str]:
     '''Convert PDF to TXT using pdfminer.six'''
     try:
+        from pdfminer.high_level import extract_text
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_LiteSwitch.txt"
         text= extract_text(input_path)
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(text)
-        print("Successfully converted {input_path} to {output_path}")
+        return output_path
     except Exception as e:
-        print(f"Error converting {input_path} to TXT: {e}")
+        logger.error(f"Error converting {input_path} to TXT: {e}")
+        raise e
 
-def pdf_to_png(input_path): #implement threadpool for this
+
+def pdf_to_png(input_path: str) -> Optional[str]: 
     '''Converts PDF to PNG using fitz'''
     try:
+        import fitz
         base, _ = os.path.splitext(input_path)
-        doc=fitz.open(input_path)
-        for page_number,page in enumerate(doc, start=1):
-            pix= page.get_pixmap(matrix=fitz.Matrix(3, 3))  # increase resolution
+        doc = fitz.open(input_path)
+        last_output = ""
+        for page_number, page in enumerate(doc, start=1):
+            pix = page.get_pixmap(matrix=fitz.Matrix(3, 3))  # increase resolution
             output_path = f"{base}_LiteSwitch_page_{page_number}.png"
             pix.save(output_path)
-        print(f"Converted {input_path} to PNG images.")
-        doc.close() 
+            last_output = output_path # returns at least one
+        doc.close()
+        return last_output # returning the last one just to fit interface
     except Exception as e:
-        print(f"Error converting {input_path} to PNG: {e}")
+        logger.error(f"Error converting {input_path} to PNG: {e}")
+        raise e
 
-def pdf_to_html(input_path):    #lossy
+
+def pdf_to_html(input_path: str) -> Optional[str]:    #lossy
     '''Converts PDF to HTML using pymupdf (fitz)'''
     try:
+        import fitz
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_LiteSwitch.html"
-        doc=fitz.open(input_path)
+        doc = fitz.open(input_path)
         with open(output_path, 'w', encoding='utf-8') as f:
             for page in doc:
                 f.write(page.get_text("html") + '\n')
         doc.close()
-        print(f"Converted {input_path} to {output_path}")
+        return output_path
     except Exception as e:
-        print(f"Error converting {input_path} to HTML: {e}")
+        logger.error(f"Error converting {input_path} to HTML: {e}")
+        raise e
 
-def pdf_to_pptx(input_path):    #converts to image and then to pptx => cannot edit text, only for showcase purposes
+def pdf_to_pptx(input_path: str) -> Optional[str]:
+    """
+    Converts PDF to PPTX using Image-Mode.
+    Each page of the PDF is converted to a high-res image and placed on a slide.
+    This ensures 100% visual fidelity (fonts, layout) at the cost of editability.
+    """
     try:
-        print("Creating a new Presentation")
-        prs= Presentation()
-        slide_width = prs.slide_width
-        slide_height = prs.slide_height
-        slide_ratio = slide_width / slide_height
-        doc= fitz.open(input_path)
+        import fitz
+        from pptx import Presentation
+        from pptx.util import Inches
+    except ImportError:
+        logger.error("Missing dependencies for PPTX conversion.")
+        raise
+    
+    try:
+        logger.info(f"Converting PDF to PPTX (Image Mode): {input_path}")
+        prs = Presentation()
+        doc = fitz.open(input_path)
 
-        for page_number in range(doc.page_count):
-            page= doc.load_page(page_number)
-            pix= page.get_pixmap(matrix=fitz.Matrix(3, 3))
-            img_stream= io.BytesIO(pix.tobytes("png"))
-
-            blank_slide= prs.slide_layouts[6]
-            slide= prs.slides.add_slide(blank_slide)
-
-            img_width = pix.width
-            img_height = pix.height
-            img_ratio = img_width / img_height
-
-            if img_ratio > slide_ratio: #image wider than slide
+        # Set slide dimensions to match the first page of PDF (optional, but good practice)
+        # For simplicity, we usually stick to default or adjust slide size.
+        # Let's try to match aspect ratio of first page if possible, 
+        # but changing slide size affects ALL slides in master. 
+        # We'll stick to standard 16:9 or 4:3 and fit the image.
+        
+        for page in doc:
+            # Create blank slide (layout 6 is usually blank)
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            
+            # Rendering high-res image (matrix=2 or 3 for better quality)
+            pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+            img_stream = io.BytesIO(pix.tobytes("png"))
+            
+            # Calculate fitting
+            # Powerpoint default is usually 10x7.5 inches or 13.33x7.5 (widescreen)
+            slide_width = prs.slide_width
+            slide_height = prs.slide_height
+            
+            img_width_px = pix.width
+            img_height_px = pix.height
+            img_ratio = img_width_px / img_height_px
+            slide_ratio = slide_width / slide_height
+            
+            # Center and Fit
+            if img_ratio > slide_ratio:
+                # Image is wider than slide: fit to width
                 new_width = slide_width
                 new_height = int(new_width / img_ratio)
-                left= Inches(0)
-                top = (slide_height - new_height) / 2
-            else:  #image taller than slide
+                left = 0
+                top = int((slide_height - new_height) / 2)
+            else:
+                # Image is taller/boxier: fit to height
                 new_height = slide_height
                 new_width = int(new_height * img_ratio)
-                top = Inches(0)
-                left = (slide_width - new_width) / 2
+                top = 0
+                left = int((slide_width - new_width) / 2)
+            
             slide.shapes.add_picture(img_stream, left, top, width=new_width, height=new_height)
-            print(f"Added page {page_number + 1} to the presentation.")
-        prs.save(f"{os.path.splitext(input_path)[0]}_LiteSwitch.pptx")
-        print(f"Converted {input_path} to PPTX.")
-    except Exception as e:
-        print(f"Error converting {input_path} to PPTX: {e}")
 
-def pdf_to_md(input_path):  #implement threadpool for this
+        base, _ = os.path.splitext(input_path)
+        output_path = f"{base}_LiteSwitch.pptx"
+        prs.save(output_path)
+        return output_path
+    
+    except Exception as e:
+        logger.error(f"Error converting PDF to PPTX: {e}")
+        raise e
+
+
+def pdf_to_md(input_path: str) -> Optional[str]:
     '''Converts PDF to Markdown using unstructured'''
     try:
+        import fitz
+        from markdownify import markdownify as md
+        
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_LiteSwitch.md"
-        doc= fitz.open(input_path)
-        markdown_content= ""
+        doc = fitz.open(input_path)
+        markdown_content = ""
 
         for pageNum in range(len(doc)):
-            page= doc.load_page(pageNum)
-            blocks= page.get_text("blocks")
+            page = doc.load_page(pageNum)
+            blocks = page.get_text("blocks")
 
             for block in blocks:
-                text= block[4].strip()
+                text = block[4].strip()
                 if not text:
                     continue
                 
@@ -216,35 +285,206 @@ def pdf_to_md(input_path):  #implement threadpool for this
         
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(final_markdown)
-        print(f"Converted {input_path} to {output_path}")
+        return output_path
     except Exception as e:
-        print(f"Error converting {input_path} to Markdown: {e}")
+        logger.error(f"Error converting {input_path} to Markdown: {e}")
+        raise e
 
-def png_to_pdf(input_path): #will configure this, and other functions to accept multiple files in the future
+
+def png_to_pdf(input_path: str) -> Optional[str]:
     try:
-        print("opening the first image")
-        first_image= Image.open(input_path).convert("RGB")
-        first_image.save(f"{os.path.splitext(input_path)[0]}_LiteSwitch.pdf", save_all=True, dpi=(300, 300))
-        print(f"Converted {input_path} to PDF.")
+        from PIL import Image
+        logger.info("opening the first image")
+        first_image = Image.open(input_path).convert("RGB")
+        output_path = f"{os.path.splitext(input_path)[0]}_LiteSwitch.pdf"
+        first_image.save(output_path, save_all=True, dpi=(300, 300))
+        return output_path
     except Exception as e:
-        print(f"Error converting {input_path} to PDF: {e}")
+        logger.error(f"Error converting {input_path} to PDF: {e}")
+        raise e
 
-CONVERSION_MAP = {
+
+def pptx_to_pdf(input_path: str) -> Optional[str]:
+    """Converts PPTX to PDF using PowerShell (COM)."""
+    import subprocess
+    logger.info(f"Converting PPTX to PDF: {input_path}")
+    
+    base, _ = os.path.splitext(input_path)
+    output_path = f"{base}_LiteSwitch.pdf"
+    
+    # ppSaveAsPDF = 32
+    ps_script = f"""
+    $ppt = New-Object -ComObject PowerPoint.Application
+    # PowerPoint requires at least a minimized window to work? 
+    # Usually it can run hidden but sometimes needs a window.
+    # We'll try minimize.
+    $ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
+    $ppt.WindowState = 2 # ppWindowMinimized
+    
+    try {{
+        $pres = $ppt.Presentations.Open('{input_path}', [Microsoft.Office.Core.MsoTriState]::msoTrue, [Microsoft.Office.Core.MsoTriState]::msoFalse, [Microsoft.Office.Core.MsoTriState]::msoFalse)
+        $pres.SaveAs('{output_path}', 32)
+        $pres.Close()
+    }} catch {{
+        Write-Error $_.Exception.Message
+        exit 1
+    }} finally {{
+        $ppt.Quit()
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($ppt) | Out-Null
+    }}
+    """
+    
+    try:
+        cmd = ["powershell", "-NoProfile", "-Command", ps_script]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+             logger.error(f"PowerShell Error: {result.stderr}")
+             raise Exception(f"PPTX->PDF failed: {result.stderr}")
+             
+        if not os.path.exists(output_path):
+             raise Exception("Output PDF not found.")
+             
+        return output_path
+    except Exception as e:
+        logger.error(f"Error converting {input_path} to PDF: {e}")
+        raise e
+
+def pptx_to_png(input_path: str) -> Optional[str]:
+    """Converts PPTX slides to PNG images (PowerShell). Returns folder path."""
+    import subprocess
+    logger.info(f"Converting PPTX to PNGs: {input_path}")
+    
+    base, _ = os.path.splitext(input_path)
+    # Output to a folder
+    output_dir = f"{base}_LiteSwitch_Slides"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
+    # We output to the folder. PowerPoint SaveAs PNG saves *every* slide.
+    # ppSaveAsPNG = 18
+    # Note: SaveAs with PNG format typically creates a folder if it's a presentation, 
+    # OR we can export slide by slide. SaveAs is easiest.
+    
+    ps_script = f"""
+    $ppt = New-Object -ComObject PowerPoint.Application
+    $ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
+    $ppt.WindowState = 2
+    
+    try {{
+        $pres = $ppt.Presentations.Open('{input_path}', [Microsoft.Office.Core.MsoTriState]::msoTrue, [Microsoft.Office.Core.MsoTriState]::msoFalse, [Microsoft.Office.Core.MsoTriState]::msoFalse)
+        # SaveAs with PNG(18) creates a Folder 'Filename' containing Slide1.PNG, Slide2.PNG...
+        # We want to control the name, but let's see. 
+        # If we target '.../Folder/Slide.png', it might save first slide?
+        # Actually Export is better for slides.
+        
+        $i = 1
+        foreach ($slide in $pres.Slides) {{
+            $out = "{output_dir}\\Slide_$i.png"
+            $slide.Export($out, "PNG", 1920, 1080)
+            $i++
+        }}
+        $pres.Close()
+    }} catch {{
+        Write-Error $_.Exception.Message
+        exit 1
+    }} finally {{
+        $ppt.Quit()
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($ppt) | Out-Null
+    }}
+    """
+    
+    try:
+        cmd = ["powershell", "-NoProfile", "-Command", ps_script]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+             logger.error(f"PowerShell Error: {result.stderr}")
+             raise Exception(f"PPTX->PNG failed: {result.stderr}")
+             
+        return output_dir
+    except Exception as e:
+        logger.error(f"Error converting {input_path} to PNG: {e}")
+        raise e
+
+def pptx_to_txt(input_path: str) -> Optional[str]:
+    """Extracts text from PPTX using python-pptx."""
+    try:
+        from pptx import Presentation
+        
+        base, _ = os.path.splitext(input_path)
+        output_path = f"{base}_LiteSwitch.txt"
+        
+        prs = Presentation(input_path)
+        text_runs = []
+        
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text"):
+                    text_runs.append(shape.text)
+                    
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(text_runs))
+            
+        return output_path
+    except Exception as e:
+        logger.error(f"Error converting {input_path} to TXT: {e}")
+        raise e
+
+def pptx_to_docx(input_path: str) -> Optional[str]:
+    """Converts PPTX text to DOCX."""
+    try:
+        from pptx import Presentation
+        from docx import Document
+        import re
+
+        def sanitize_xml(text):
+            # Remove characters that are incompatible with XML 1.0 (control chars)
+            # We keep \x09,\x0A,\x0D and normal chars. We remove \x00-\x08, \x0B, \x0C, \x0E-\x1F
+            return re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', text)
+
+        base, _ = os.path.splitext(input_path)
+        output_path = f"{base}_LiteSwitch.docx"
+        
+        prs = Presentation(input_path)
+        doc = Document()
+        doc.add_heading(f"Converted from {os.path.basename(input_path)}", 0)
+        
+        for i, slide in enumerate(prs.slides):
+            doc.add_heading(f"Slide {i+1}", level=1)
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text.strip():
+                    clean_text = sanitize_xml(shape.text)
+                    if clean_text.strip():
+                        doc.add_paragraph(clean_text)
+        
+        doc.save(output_path)
+        return output_path
+    except Exception as e:
+        logger.error(f"Error converting {input_path} to DOCX: {e}")
+        raise e
+
+
+CONVERSION_MAP: Dict[str, Dict[str, Callable[[str], Optional[str]]]] = {
     "docx": {
         "pdf": docx_to_pdf,
         "odt": docx_to_odt,
         "txt": docx_to_txt,
         "md": docx_to_md,
-        "latex": docx_to_latex,
-        "html": docx_to_html,
+        "tex": docx_to_latex,
     },
     "pdf": {
         "docx": pdf_to_docx,
         "png": pdf_to_png,
         "pptx": pdf_to_pptx,
         "txt": pdf_to_txt,
-        "html": pdf_to_html,
         "md": pdf_to_md,
+    },
+    "pptx": {
+        "pdf": pptx_to_pdf,
+        "png": pptx_to_png,
+        "txt": pptx_to_txt,
+        "docx": pptx_to_docx,
     },
     "png":{
         "pdf": png_to_pdf

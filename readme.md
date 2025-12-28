@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="LiteSwitch Logo.png" alt="LiteSwitch Logo" width="128" />
+  <img src="assets\LiteSwitch_Logo_NEW.ico" alt="LiteSwitch Logo" width="128" />
   <h1>LiteSwitch</h1>
   <p><strong>"From this to that—just like that."</strong></p>
 </div>

@@ -1,12 +1,22 @@
 import sys
 import os
-import winreg
+if os.name == 'nt':
+    import winreg
+else:
+    winreg = None
+    
 from converter.document_converter import CONVERSION_MAP
 
 APP_NAME = "LiteSwitch"
 CLI_PATH = os.path.abspath("cli.py")
 # Use pythonw.exe to avoid terminal popup
 PYTHON_EXEC = sys.executable.replace("python.exe", "pythonw.exe")
+
+# Linux Paths
+LINUX_APP_DIR = os.path.expanduser("~/.local/share/applications")
+LINUX_ICON_DIR = os.path.expanduser("~/.local/share/icons")
+LINUX_ICON_NAME = "liteswitch.png" # Prefer PNG for Linux
+LINUX_DESKTOP_FILE = "liteswitch.desktop"
 
 def cleanup_old_keys():
     """Aggressively remove old/broken keys from previous versions."""
@@ -23,6 +33,77 @@ def cleanup_old_keys():
             try:
                 winreg.DeleteKey(winreg.HKEY_CURRENT_USER, old_key_path)
             except: pass
+
+def register_linux():
+    """Registers LiteSwitch on Linux using a .desktop file."""
+    print(f"Registering {APP_NAME} for Linux...")
+    
+    # 1. Install Icon
+    if not os.path.exists(LINUX_ICON_DIR):
+        os.makedirs(LINUX_ICON_DIR)
+        
+    icon_src = os.path.abspath(os.path.join("assets", "LiteSwitch_Logo_NEW.ico"))
+    icon_dst = os.path.join(LINUX_ICON_DIR, LINUX_ICON_NAME)
+    
+    if os.path.exists(icon_src):
+        # Convert ICO to PNG using Pillow (installed in requirements)
+        try:
+             from PIL import Image
+             img = Image.open(icon_src)
+             img.save(icon_dst, format='PNG')
+             print(f"Icon installed (converted to PNG) to: {icon_dst}")
+        except Exception as e:
+             print(f"Failed to convert icon: {e}. Copying original...")
+             import shutil
+             shutil.copy(icon_src, icon_dst)
+    else:
+        print(f"Warning: Icon not found at {icon_src}")
+
+    # 2. Create .desktop file
+    if not os.path.exists(LINUX_APP_DIR):
+        os.makedirs(LINUX_APP_DIR)
+        
+    desktop_path = os.path.join(LINUX_APP_DIR, LINUX_DESKTOP_FILE)
+    
+    # We use sys.executable to ensure we use the SAME python environment (e.g. the venv)
+    # The CLI path must be absolute
+    
+    # MimeTypes for office docs + pdf
+    mimes = "application/pdf;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.openxmlformats-officedocument.presentationml.presentation;"
+    
+    # Exec command: python /path/to/cli.py %f --to pdf (Default behavior?)
+    # Context menu usually implies options. 
+    # Since standard "Open With" just passes the file, we can't easily have sub-menus (to pdf, to png) without Actions.
+    
+    desktop_content = f"""[Desktop Entry]
+Type=Application
+Name={APP_NAME}
+Comment=Convert files with LiteSwitch
+Icon={icon_dst}
+Exec={sys.executable} "{CLI_PATH}" "%f"
+Terminal=false
+Categories=Utility;
+MimeType={mimes}
+Actions=ConvertToPDF;ConvertToPNG;ConvertToTXT;
+
+[Desktop Action ConvertToPDF]
+Name=Convert to PDF
+Exec={sys.executable} "{CLI_PATH}" "%f" --to pdf
+
+[Desktop Action ConvertToPNG]
+Name=Convert to PNG
+Exec={sys.executable} "{CLI_PATH}" "%f" --to png
+
+[Desktop Action ConvertToTXT]
+Name=Convert to TXT
+Exec={sys.executable} "{CLI_PATH}" "%f" --to txt
+"""
+    
+    with open(desktop_path, "w") as f:
+        f.write(desktop_content)
+        
+    print(f"Desktop entry created: {desktop_path}")
+    print("LiteSwitch should now appear in 'Open With' menus!")
 
 def register_menu():
     print(f"Registering {APP_NAME}...")
@@ -122,12 +203,32 @@ def unregister_menu():
                  
     print(f"Removed keys for {count} extensions.")
 
+def unregister_linux():
+    """Removes Linux desktop entry and icon."""
+    print(f"Unregistering {APP_NAME} for Linux...")
+    
+    desktop_path = os.path.join(LINUX_APP_DIR, LINUX_DESKTOP_FILE)
+    if os.path.exists(desktop_path):
+        os.remove(desktop_path)
+        print(f"Removed: {desktop_path}")
+        
+    icon_dst = os.path.join(LINUX_ICON_DIR, LINUX_ICON_NAME)
+    if os.path.exists(icon_dst):
+        os.remove(icon_dst)
+        print(f"Removed: {icon_dst}")
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--unregister":
-        unregister_menu()
+        if os.name == "nt":
+            unregister_menu()
+        else:
+            unregister_linux()
     else:
         # Default to register
         if len(sys.argv) > 1 and sys.argv[1] == "--register":
-            register_menu()
+            if os.name == "nt":
+                register_menu()
+            else:
+                register_linux()
         else:
             print("Usage: menu_manager.py [--register | --unregister]")

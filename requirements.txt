@@ -1,5 +1,5 @@
-pywin32
-comtypes
+pywin32; sys_platform == 'win32'
+comtypes; sys_platform == 'win32'
 pypandoc-binary
 pymupdf
 python-docx 

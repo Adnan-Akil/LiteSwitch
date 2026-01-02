@@ -5,12 +5,72 @@ import io
 import sys
 import logging
 import subprocess
+import shutil
+import platform
 from typing import Optional, Callable, Dict
+
+# Detect Linux Office Binary (LibreOffice or OpenOffice)
+LINUX_OFFICE_BIN = None
+if platform.system() == "Linux":
+    # Prioritize libreoffice, then soffice (generic)
+    LINUX_OFFICE_BIN = shutil.which("libreoffice") or shutil.which("soffice")
 
 # Configure Logger (inherits from main app if setup, else default)
 logger = logging.getLogger(__name__)
 
+def linux_office_convert(input_path: str, output_format: str) -> Optional[str]:
+    """Helper to convert using LibreOffice/OpenOffice on Linux."""
+    if not LINUX_OFFICE_BIN:
+         raise Exception("No Office suite found (tried 'libreoffice', 'soffice'). Please install LibreOffice.")
+    
+    logger.info(f"Linux Conversion: {input_path} -> {output_format} using {LINUX_OFFICE_BIN}")
+    
+    # Command: libreoffice --headless --convert-to pdf --outdir /path/to/dir input_file
+    out_dir = os.path.dirname(input_path)
+    cmd = [
+        LINUX_OFFICE_BIN,
+        "--headless",
+        "--convert-to", output_format,
+        "--outdir", out_dir,
+        input_path
+    ]
+    
+    # Run
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        logger.error(f"Office conversion failed: {result.stderr}")
+        raise Exception(f"Conversion failed: {result.stderr}")
+        
+    # Predict output name
+    base, _ = os.path.splitext(input_path)
+    output_path = f"{base}.{output_format}"
+    
+    # Rename to adhere to LiteSwitch naming convention if needed, or just return it
+    # LiteSwitch convention: name_LiteSwitch.fmt
+    final_output = f"{base}_LiteSwitch.{output_format}"
+    
+    if os.path.exists(output_path):
+        # LibreOffice output name might not match exactly what we want, rename it
+        if os.path.exists(final_output):
+            os.remove(final_output)
+        os.rename(output_path, final_output)
+        return final_output
+    
+    # Sometimes it might already be named correctly if we were lucky? unlikely.
+    if os.path.exists(final_output):
+        return final_output
+        
+    raise Exception("Output file not found after conversion.")
+
 def docx_to_pdf(input_path: str) -> Optional[str]:
+    """
+    Converts a DOCX file to PDF.
+    Windows: Uses PowerShell (COM).
+    Linux: Uses LibreOffice.
+    """
+    if platform.system() == "Linux":
+         return linux_office_convert(input_path, "pdf")
+         
     """
     Converts a DOCX file to PDF using PowerShell (bypassing broken pywin32).
     Uses MS Word via COM from PowerShell.
@@ -310,6 +370,10 @@ def png_to_pdf(input_path: str) -> Optional[str]:
 
 
 def pptx_to_pdf(input_path: str) -> Optional[str]:
+    """Converts PPTX to PDF."""
+    if platform.system() == "Linux":
+        return linux_office_convert(input_path, "pdf")
+
     """Converts PPTX to PDF using PowerShell (COM)."""
     logger.info(f"Converting PPTX to PDF: {input_path}")
     
@@ -361,6 +425,31 @@ def pptx_to_pdf(input_path: str) -> Optional[str]:
         raise e
 
 def pptx_to_png(input_path: str) -> Optional[str]:
+    """Converts PPTX slides to PNG images. Returns folder path."""
+    if platform.system() == "Linux":
+        # Strategy: PPTX -> PDF -> PNG
+        pdf_path = pptx_to_pdf(input_path)
+        if pdf_path:
+            # We reuse the existing pdf_to_png logic but that returns a single file path usually?
+            # actually pdf_to_png in this file returns "last_output" but saves all pages.
+            # We want to return a folder or similar behavior to Windows?
+            # Windows implementation returns a FOLDER path.
+            
+            # Let's create a folder
+            base, _ = os.path.splitext(input_path)
+            output_dir = f"{base}_LiteSwitch_Slides"
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+            
+            # Use fitz manually here to control output location matches Windows behavior
+            import fitz
+            doc = fitz.open(pdf_path)
+            for i, page in enumerate(doc, start=1):
+                pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+                pix.save(f"{output_dir}/Slide_{i}.png")
+            doc.close()
+            return output_dir
+
     """Converts PPTX slides to PNG images (PowerShell). Returns folder path."""
     logger.info(f"Converting PPTX to PNGs: {input_path}")
     

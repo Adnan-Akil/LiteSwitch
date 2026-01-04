@@ -513,6 +513,9 @@ def pptx_to_png(input_path: str) -> Optional[str]:
 
 def pptx_to_txt(input_path: str) -> Optional[str]:
     """Extracts text from PPTX using python-pptx."""
+    if platform.system() == "Linux":
+         return linux_office_convert(input_path, "txt")
+         
     try:
         from pptx import Presentation
         
@@ -537,6 +540,9 @@ def pptx_to_txt(input_path: str) -> Optional[str]:
 
 def pptx_to_docx(input_path: str) -> Optional[str]:
     """Converts PPTX text to DOCX."""
+    if platform.system() == "Linux":
+         return linux_office_convert(input_path, "docx")
+
     try:
         from pptx import Presentation
         from docx import Document
@@ -585,6 +591,12 @@ CONVERSION_MAP: Dict[str, Dict[str, Callable[[str], Optional[str]]]] = {
         "md": pdf_to_md,
     },
     "pptx": {
+        "pdf": pptx_to_pdf,
+        "png": pptx_to_png,
+        "txt": pptx_to_txt,
+        "docx": pptx_to_docx,
+    },
+    "ppt": {
         "pdf": pptx_to_pdf,
         "png": pptx_to_png,
         "txt": pptx_to_txt,

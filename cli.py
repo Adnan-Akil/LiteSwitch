@@ -56,62 +56,75 @@ def show_message(title, msg, is_error=False):
 
 def main():
     parser = argparse.ArgumentParser(description="LiteSwitch File Converter")
-    parser.add_argument("input_file", help="Path to the input file")
+    parser.add_argument("input_files", nargs='+', help="Path to the input file(s)")
     parser.add_argument("--to", required=False, help="Target format extension (e.g. pdf, docx)")
     
     args = parser.parse_args()
     
-    input_path = os.path.abspath(args.input_file.strip('"').strip("'"))
-    input_path = os.path.abspath(args.input_file.strip('"').strip("'"))
+    # Robust Argument Parsing
+    # Sometimes (e.g. Linux Desktop Entry with "%F"), args might be passed as a single merged string
+    # e.g. ["'/path/A' '/path/B'"] instead of ["/path/A", "/path/B"]
+    
+    raw_files = args.input_files
+    if len(raw_files) == 1 and ("' '" in raw_files[0] or '" "' in raw_files[0]):
+        import shlex
+        try:
+            # shlex.split will handle the quotes correctly
+            raw_files = shlex.split(raw_files[0])
+            logging.info(f"Detected merged arguments, split into: {len(raw_files)} files")
+        except Exception as e:
+            logging.warning(f"Failed to split merged args: {e}")
+
+    # args.input_files is now a proper list
+    input_paths = [os.path.abspath(f.strip('"').strip("'")) for f in raw_files]
     
     if args.to:
         target_ext = args.to.lower().lstrip('.')
     else:
         target_ext = None
     
-    if not os.path.exists(input_path):
-        err = f"File not found: {input_path}"
-        logging.error(err)
-        show_message("LiteSwitch Error", f"{err}\n\nSee log: {LOG_FILE}", is_error=True)
+    # Validation: Check existence
+    valid_files = []
+    for p in input_paths:
+        if os.path.exists(p):
+            valid_files.append(p)
+        else:
+            logging.error(f"File not found: {p}")
+
+    if not valid_files:
         sys.exit(1)
 
-    source_ext = os.path.splitext(input_path)[1].lower().lstrip('.')
+    # Detect common source extension for batch prompt
+    # We take the extension of the FIRST file as the driver for simplicity
+    first_ext = os.path.splitext(valid_files[0])[1].lower().lstrip('.')
     
-    logging.info(f"CLI Request: {input_path} -> {target_ext}")
-
-    if source_ext not in CONVERSION_MAP:
-        err = f"No conversions supported for input type: .{source_ext}"
-        logging.error(err)
-        show_message("LiteSwitch Error", f"{err}\n\nSee log: {LOG_FILE}", is_error=True)
-        sys.exit(1)
-        
-    # Smart Selection (GUI) if target not provided
+    # Verify all have same extension? If not, we might be in trouble for a single prompt.
+    # For now, let's assume batch selection usually involves same types.
+    # If mixed, we only support converting the ones matching the first one, or we error?
+    # Better UX: Warn if mixed? Or just try to process what we can.
+    # PROMPT LOGIC: Based on first_ext.
+    
     if not target_ext:
-        if source_ext not in CONVERSION_MAP:
-            err = f"No conversions supported for input type: .{source_ext}"
-            show_message("LiteSwitch Error", err, is_error=True)
-            sys.exit(1)
-            
-        supported = list(CONVERSION_MAP[source_ext].keys())
+        if first_ext not in CONVERSION_MAP:
+             show_message("LiteSwitch Error", f"No conversions supported for input type: .{first_ext}", is_error=True)
+             sys.exit(1)
+
+        supported = list(CONVERSION_MAP[first_ext].keys())
         
-        # If only one option, default to it? No, explicit is better.
         # Launch Zenity List
         if shutil.which("zenity"):
-            # Construct list for zenity
-            # zenity --list --column="Format" "pdf" "png" ...
-            cmd = ["zenity", "--list", "--title", "Convert to...", "--column", "Format"] + supported
+            title = f"Convert {len(valid_files)} file(s) to..."
+            cmd = ["zenity", "--list", "--title", title, "--column", "Format"] + supported
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode == 0 and result.stdout.strip():
                 target_ext = result.stdout.strip()
             else:
                 sys.exit(0) # User cancelled
         elif shutil.which("kdialog"):
-             # kdialog --menu "Convert to..." "pdf" "pdf"...
-             # kdialog menu requires pairs 'tag' 'item'.
              menu_args = []
              for s in supported:
                  menu_args.extend([s, s])
-             cmd = ["kdialog", "--menu", "Choose Target Format",] + menu_args
+             cmd = ["kdialog", "--menu", f"Convert {len(valid_files)} files",] + menu_args
              result = subprocess.run(cmd, capture_output=True, text=True)
              if result.returncode == 0 and result.stdout.strip():
                   target_ext = result.stdout.strip()
@@ -128,38 +141,47 @@ def main():
             except:
                 sys.exit(1)
 
-    if target_ext not in CONVERSION_MAP[source_ext]:
-        err = f"Cannot convert .{source_ext} to .{target_ext}"
-        logging.error(err)
-        show_message("LiteSwitch Error", f"{err}\n\nSee log: {LOG_FILE}", is_error=True)
-        sys.exit(1)
+    # Now execute conversion loop
+    success_count = 0
+    errors = []
+    
+    for input_path in valid_files:
+        current_ext = os.path.splitext(input_path)[1].lower().lstrip('.')
+        
+        # Check if this specific file supports the detected target
+        # (Handling mixed batches gracefully)
+        if current_ext not in CONVERSION_MAP or target_ext not in CONVERSION_MAP[current_ext]:
+            logging.warning(f"Skipping {os.path.basename(input_path)}: cannot convert .{current_ext} to .{target_ext}")
+            continue
 
-    try:
-        converter = CONVERSION_MAP[source_ext][target_ext]
-        output_path = converter(input_path)
-        logging.info(f"Success: {output_path}")
-        
-        # Success Popup 
-        filename = os.path.basename(output_path)
-        
-        # Try to read catchphrase from assets
+        try:
+            converter = CONVERSION_MAP[current_ext][target_ext]
+            output_path = converter(input_path)
+            logging.info(f"Success: {output_path}")
+            success_count += 1
+        except Exception as e:
+            logging.exception(f"Failed to convert {input_path}")
+            errors.append(os.path.basename(input_path))
+
+    # Final Summary
+    if success_count > 0:
+        msg = f"Successfully converted {success_count} file(s) to {target_ext.upper()}!"
+        if errors:
+            msg += f"\n\nFailed ({len(errors)}): {', '.join(errors)}"
+            
+        # Catchphrase only on success
         catchphrase = "From this to that--just like that."
         cp_path = os.path.join(os.path.dirname(__file__), "assets", "catchphrase.txt")
         if os.path.exists(cp_path):
             try:
                 with open(cp_path, "r", encoding="utf-8") as f:
-                    content = f.read().strip()
-                    if content:
-                        catchphrase = content.strip('"') # Remove quotes if present
-            except:
-                pass
-
-        show_message("LiteSwitch Success", f"{catchphrase}\n\nLiteSwitch has done the job!\nCreated: {filename}")
+                    c = f.read().strip()
+                    if c: catchphrase = c.strip('"')
+            except: pass
             
-    except Exception as e:
-        logging.exception("Conversion failed")
-        show_message("LiteSwitch Error", f"An error occurred during conversion.\n\n{str(e)}\n\nSee log: {LOG_FILE}", is_error=True)
-        sys.exit(1)
+        show_message("LiteSwitch Success", f"{catchphrase}\n\n{msg}")
+    elif errors:
+        show_message("LiteSwitch Error", f"Conversion failed for all files.\nCheck logs for details.", is_error=True)
 
 if __name__ == "__main__":
     try:
